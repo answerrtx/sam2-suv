@@ -1,0 +1,8 @@
+Datasets/MSKUSO
+Datasets/SPUS
+Datasets/dev_test
+Outputs/
+checkpoints/*
+checkpoints/
+demo/
+LightGlue/
