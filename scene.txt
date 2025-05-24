@@ -1,0 +1,15 @@
+Deltoid, Hum, Subscap
+Deltoid,Hum,SSP
+Deltoid, Biceps, Hum
+ACR, CLV,SSP
+Deltoid, HH, InfSp
+MC
+PrxPx, UCL, MC
+Rad, FT, LU, Sca
+VA
+VA
+A, FH, IP, FN,AIIS
+GtrTroch
+P
+MCL,Fem,Tib
+Fem
