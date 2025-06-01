@@ -1,6 +1,6 @@
 base_dataset_path: "./Datasets/MSKUSO/"
-folder_name: "shd4"  # 对应目标子目录，如手、腰、髋等
-
+folder_name: "shd"  # 对应目标子目录，如手、腰、髋等
+match_desc_turn_on: False  # 是否开启SUV自动分割功能
 
 #base_dataset_path: "./Datasets/SPUS/DIFF"
 #folder_name: "S1704"  # 对应目标子目录，如手、腰、髋等
@@ -23,14 +23,14 @@ language_model_config:
   Model_type: "manual_class"  # choices: llm, medical_llm, sbert, manual_class
   Model_name: "gpt-4.1" # choices: gpt-4.1, "gemini-2.0-flash" for llm , biogpt and pubmedgpt for medical_llm
   Instruction: "instruction.txt"
-  Class_name: "SSP" # if model_type is manual_class, please input the class name
+  Class_name: "FH" # if model_type is manual_class, please input the class name
 
 anchor_descriptors_config:
   og_export: "./checkpoints/omniglue.onnx"
   sp_export: "./checkpoints/sp_v6.onnx"
   dino_export: "./checkpoints/dinov2_vitb14_pretrain.pth"
-  ssim_min: 0.80         # optional, default: 0.8
-  ssim_max: 0.95         # optional, h: 0.95
+  ssim_min: 0.95         # optional, default: 0.8
+  ssim_max: 0.99         # optional, h: 0.95
 
 classify_kps:
   feature_json_folder: "support/mask_features/"

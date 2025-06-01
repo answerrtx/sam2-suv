@@ -5,6 +5,8 @@ from PIL import Image
 from skimage.metrics import structural_similarity as ssim
 import matplotlib.pyplot as plt
 import sys
+from sklearn.manifold import TSNE
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from omniglue_onnx import omniglue
@@ -15,6 +17,7 @@ from sklearn.decomposition import PCA
 from sklearn.cluster import DBSCAN
 import torch
 import torchvision.transforms as T
+from sklearn.cluster import MeanShift, estimate_bandwidth
 
 # 添加 transform 用于 DINOv2 特征提取
 transform_dino = T.Compose([
@@ -68,8 +71,44 @@ def visualize_keypoints_by_cluster(image, keypoints, labels, radius=4, cmap_name
 
     return img
 
-# ---------- 主程序入口 ----------
+import matplotlib.pyplot as plt
+import numpy as np
 
+def interactive_pca_matplotlib(reduced, keypoints, image):
+    """
+    使用 matplotlib 实现 PCA 投影图交互，
+    点击 PCA 点后在原图中高亮对应关键点。
+    """
+    fig, ax = plt.subplots(figsize=(6, 6))
+    scatter = ax.scatter(reduced[:, 0], reduced[:, 1], c='blue', s=30, picker=True)
+    ax.set_title("PCA Projection (Click to View Keypoint)")
+    ax.set_xlabel("PC1")
+    ax.set_ylabel("PC2")
+
+    # 将点击与 index 对应起来
+    def on_pick(event):
+        ind = event.ind[0]  # 多点时只取第一个
+        print(f"🟢 点击了点 {ind}")
+
+        # 在原图中标出 keypoint
+        img_copy = image.copy()
+        x, y = int(round(keypoints[ind][0])), int(round(keypoints[ind][1]))
+        img_copy[y-4:y+5, x-4:x+5] = [255, 0, 0]  # 红色标记
+
+        # 显示图像
+        plt.figure(figsize=(5, 5))
+        plt.imshow(img_copy)
+        plt.title(f"Keypoint {ind} on Original Image")
+        plt.axis('off')
+        plt.show()
+
+    fig.canvas.mpl_connect('pick_event', on_pick)
+    plt.show()
+
+
+
+from sklearn.cluster import SpectralClustering
+from sklearn.metrics.pairwise import cosine_similarity
 def main():
     parser = argparse.ArgumentParser(description="Initial Anchor Descriptors with OmniGlue")
     parser.add_argument("--image_folder", required=True, help="Path to image folder")
@@ -132,7 +171,7 @@ def main():
 
         image0 = np.array(Image.open(base_img_path).convert("RGB"))
         image1 = np.array(Image.open(image_paths[best_index]).convert("RGB"))
-
+        print(base_img_path," to_match: ",best_index)
         match_kp0, match_kp1, confidences = og.FindMatches(image0, image1)
         keep = confidences > 0.02
         match_kp0 = match_kp0[keep]
@@ -159,11 +198,22 @@ def main():
 
         # Step 3: PCA 降维
         pca = PCA(n_components=8)
-        reduced = pca.fit_transform(selected_features)
+        reduced_pca = pca.fit_transform(selected_features)
+        tsne = TSNE(n_components=2, perplexity=30, init='pca', random_state=42)
+        reduced = tsne.fit_transform(selected_features)
 
-        # Step 4: 无监督聚类 (DBSCAN)
-        cluster = DBSCAN(eps=0.8, min_samples=2).fit(reduced)
-        labels = cluster.labels_  # 可能包含 -1 表示噪声
+        #plot_pca_with_image_mapping(reduced, match_kp0, image0)
+        #interactive_pca_keypoint_view(reduced, match_kp0, image0)
+        #interactive_pca_matplotlib(reduced, match_kp0, image0)
+        print(selected_features.shape, reduced.shape,match_kp0.shape)
+        # Step 4: 聚类
+        joint_feat = np.concatenate([
+            selected_features,
+            np.array(match_kp0) * 0.05  # 位置缩放以保持尺度匹配
+        ], axis=1)
+        from sklearn.cluster import KMeans
+        cluster = KMeans(n_clusters=5).fit(joint_feat)
+        labels = cluster.labels_
 
         # Step 5: 保存带聚类标签的结果
         save_path = os.path.join(args.output, f"{os.path.splitext(fname)[0]}.txt")
@@ -176,7 +226,7 @@ def main():
         img0_keypoints = visualize_keypoints_by_cluster(image0, match_kp0, labels)
 
         concat_img = np.concatenate([img0_keypoints, viz], axis=1)
-        plt.imsave(os.path.join(args.output, f"{os.path.splitext(fname)[0]}_match.png"), img0_keypoints)
+        plt.imsave(os.path.join(args.output, f"{os.path.splitext(fname)[0]}_cluster.png"), img0_keypoints)
 
     print("🎯 匹配完成 ✅")
 

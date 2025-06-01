@@ -86,7 +86,7 @@ def main(config_path):
     
 
     class_txt_path = os.path.join(output_folder, "seg_target_category_manual.txt")
-    
+        
     # === 3. Classify Points ===
     with open(class_txt_path, 'r') as f:
         matched_class_name = f.readline().strip()
@@ -198,7 +198,7 @@ def main(config_path):
     ])        
 
     result_folder = os.path.join(output_folder, class_name, "result")
-
+    """
     # === 4. SUV Auto Segmentation ===
     suv_cfg = cfg['suv_auto']
     run_command("suv_auto.py", [
@@ -212,7 +212,7 @@ def main(config_path):
         "--augmentation", suv_cfg['augmentation'],
         "--target_class", matched_class_name,
     ])
-    
+    """
     
 
 if __name__ == "__main__":

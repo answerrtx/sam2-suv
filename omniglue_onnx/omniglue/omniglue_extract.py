@@ -53,7 +53,7 @@ class OmniGlue:
         self,
         image0: np.ndarray,
         image1: np.ndarray,
-        mask: np.ndarray,
+        mask: np.ndarray = None,
         max_keypoints: int = 1024,
     ):
         """TODO(omniglue): docstring."""
@@ -62,7 +62,7 @@ class OmniGlue:
         # TODO: numpy to torch inputs
         sp_features0 = self.sp_extract(image0, segmentation_mask=None,num_features=max_keypoints)
         sp_features1 = self.sp_extract(image1, segmentation_mask=mask,num_features=max_keypoints)
-        print(len(sp_features1), sp_features1[0].shape)
+        #print(len(sp_features1), sp_features1[0].shape)
         dino_features0 = self.dino_extract(image0)
         dino_features1 = self.dino_extract(image1)
         dino_descriptors0 = dino_extract.get_dino_descriptors(
