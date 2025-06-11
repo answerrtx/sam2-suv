@@ -112,7 +112,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 def main():
     parser = argparse.ArgumentParser(description="Initial Anchor Descriptors with OmniGlue")
     parser.add_argument("--image_folder", required=True, help="Path to image folder")
-    parser.add_argument("--index_file", required=True, help="Path to keyframe index file")
+    parser.add_argument("--anchor_file", required=True, help="Path to keyframe index file")
     parser.add_argument("--output", required=True, help="Output folder for match results")
 
     # 模型路径
@@ -140,7 +140,7 @@ def main():
         providers= ['CUDAExecutionProvider', 'CPUExecutionProvider']
     )
 
-    with open(args.index_file, "r") as f:
+    with open(args.anchor_file, "r") as f:
         frame_filenames = [line.strip() for line in f if line.strip().endswith(".jpg")]
 
     for fname in frame_filenames:

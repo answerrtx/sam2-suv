@@ -4,13 +4,13 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 class InstructionMatcher:
-    def __init__(self, model_name="microsoft/biogpt", device=None, max_tokens=64):
+    def __init__(self, model_name="microsoft/biogpt", device=None, max_tokens=64, output_path = None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
         self.model = AutoModelForCausalLM.from_pretrained(model_name).to(self.device)
         self.max_tokens = max_tokens
         self.model_shortname = model_name.split("/")[-1]
-
+        self.output_path = output_path
     def generate_response(self, instruction: str, desc: str) -> str:
         prompt = (
             f"Description:\n{desc}\n\n"
@@ -63,14 +63,14 @@ class InstructionMatcher:
                 break
 
         # Save top-1 prediction
-        top_txt_path = f"Outputs/seg_target_cat_{output_prefix}.txt"
-        with open(top_txt_path, "w") as f:
+        with open(self.output_path, "w") as f:
             f.write(top_prediction[1] + "\n")
 
         # Save all responses
-        full_json_path = f"Outputs/seg_target_res_{output_prefix}.json"
+        full_json_path = self.output_path.replace(".txt", ".json")
         with open(full_json_path, "w") as f:
             json.dump({
+                "model": output_prefix,
                 "instruction": instruction,
                 "top_prediction": {
                     "structure": top_prediction[0],
@@ -107,14 +107,15 @@ if __name__ == "__main__":
     parser.add_argument("--instruction", type=str, required=True, help="Path to text or JSON file containing test instructions")
     parser.add_argument("--api_key", type=str, required=False, help="API key for the LLM")
     parser.add_argument("--model_name", type=str, default=None, help="Model name for the LLM (e.g., gpt-4, gemini-pro)")
-    os.makedirs("Outputs", exist_ok=True)
+    parser.add_argument("--output_path", type=str, default="Outputs", help="Path to save the output files")
+    
 
     args = parser.parse_args()
 
     test_cases = load_test_cases(args.instruction)
     if args.model_name.find("biogpt") != -1:
         print("🔬 BioGPT Matching Results")
-        matcher_biogpt = InstructionMatcher(model_name="microsoft/biogpt")
+        matcher_biogpt = InstructionMatcher(model_name="microsoft/biogpt", output_path=args.output_path)
         for instruction in test_cases:
             print(f"\nInstruction: {instruction}")
             top, _ = matcher_biogpt.match_instruction_to_descs(
@@ -123,7 +124,7 @@ if __name__ == "__main__":
             print(f"Top predicted class: {top[1]}")
     elif args.model_name.find("pubmedgpt") != -1:
         print("\n📘 PubMedGPT Matching Results")
-        matcher_pubmed = InstructionMatcher(model_name="stanford-crfm/pubmedgpt")
+        matcher_pubmed = InstructionMatcher(model_name="stanford-crfm/pubmedgpt", output_path=args.output_path)
         for instruction in test_cases:
             print(f"\nInstruction: {instruction}")
             top, _ = matcher_pubmed.match_instruction_to_descs(

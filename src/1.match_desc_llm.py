@@ -8,15 +8,14 @@ import requests
 import openai
 from typing import Optional
 
-gpt_api_key ="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"
-gemini_api_key="AIzaSyD6aRvxrVlXHfqQfjCYDSOOfVeogf9RsVs"
-query_folder = ""
+
 
 class LLMRouter:
-    def __init__(self, provider: str, api_key: str, model: Optional[str] = None):
+    def __init__(self, provider: str, api_key: str, model: Optional[str] = None, output_path=None):
         self.provider = provider.lower()
         self.api_key = api_key
         self.model = model
+        self.output_path = output_path
         with open("color_map_full.json", "r") as f:
             entries = json.load(f)
         self.fullname_to_abbr = {
@@ -99,11 +98,12 @@ class LLMRouter:
         matched_class = matched_class[0] if matched_class else "unknown"
 
         # Output files
-        with open(f"Outputs/{query_folder}/seg_target_cat_{output_prefix}.txt", "w") as f:
+        with open(self.output_path, "w") as f:
             f.write(best_match_id + "\n")
 
-        with open(f"Outputs/{query_folder}/seg_target_res_{output_prefix}.json", "w") as f:
+        with open(self.output_path.replace('.txt','.json'), "w") as f:
             json.dump({
+                "model": output_prefix,
                 "instruction": instruction,
                 "top_prediction": {
                     "structure": best_match_id,
@@ -139,14 +139,18 @@ if __name__ == "__main__":
     parser.add_argument("--instruction", type=str, required=True, help="Path to text or JSON file containing test instructions")
     parser.add_argument("--api_key", type=str, required=False, help="API key for the LLM")
     parser.add_argument("--model_name", type=str, default=None, help="Model name for the LLM (e.g., gpt-4, gemini-pro)")
-    parser.add_argument("--folder", type=str, default=None, help="Query folder name")
+    parser.add_argument("--output_path", type=str, default=None, help="Query folder name")
 
     args = parser.parse_args()
 
     test_cases = load_test_cases(args.instruction)
-    query_folder = args.folder
-    gpt_router = LLMRouter(provider="gpt", api_key=gpt_api_key, model=args.model_name)
-    gemini_router = LLMRouter(provider="gemini", api_key=gemini_api_key, model=args.model_name)
+    api_key = args.api_key.strip()
+    if args.model_name == 'gpt':
+        llm_model = "gpt-4.1"
+    elif args.model_name == 'gemini':
+        llm_model = "gemini-2.0-flash"
+    gpt_router = LLMRouter(provider="gpt", api_key=api_key, model=llm_model, output_path=args.output_path )
+    gemini_router = LLMRouter(provider="gemini", api_key=api_key, model=llm_model, output_path=args.output_path)
     for instruction in test_cases:
         if args.model_name.find("gpt") != -1:
             print(f"\n🧠 GPT Matching for: {instruction}")

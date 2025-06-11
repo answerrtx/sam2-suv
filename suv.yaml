@@ -1,5 +1,5 @@
 base_dataset_path: "./Datasets/MSKUSO/"
-folder_name: "shd"  # 对应目标子目录，如手、腰、髋等
+folder_name: "shd2"  # 对应目标子目录，如手、腰、髋等
 match_desc_turn_on: False  # 是否开启SUV自动分割功能
 
 #base_dataset_path: "./Datasets/SPUS/DIFF"
@@ -11,21 +11,48 @@ support_subdir: "support"
 #"support"
 output_root: "./Outputs"
 color_map_path: "suv.json"
+
+# what kind of instruction to be used
+instruction_config:
+  turn_on: True  
+  type: "image"  # choices: instruction, image
+  text_path: "instruction.txt"
+  image_path: "./Datasets/MSKUSO/support/imgs/shd_00015.jpg"
+  mask_path: "./Datasets/MSKUSO/support/mask/shd_00015.png" # if type is image, please input the mask path
+
+# find the class with text
+language_model_config:
+  gpt_api_key: "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"
+  gemini_api_key: "AIzaSyD6aRvxrVlXHfqQfjCYDSOOfVeogf9RsVs"
+  turn_on: True
+  Model_type: "manual_class"  # choices: llm, medical_llm, minillm, manual_class
+  Model_name: "sbert" # choices: gpt-4.1, "gemini-2.0-flash" for llm , biogpt and pubmedgpt for medical_llm, sbert for minillm
+  Class_name: "FH" # if model_type is manual_class, please input the class name
+
+
+# which frames to be used for annotation
 anchor_frame_config:
+  turn_on: False
+  anchor_type: "ssim2" # choices: ssim, step1, step5, step10
   top_percent: 0.25
-  ssim_diff_threshold: 0.1
+  ssim_diff_threshold: 0.2
   max_keyframes: 5
   use_percentile: False
   #output_path: Ouptput_path/folder_name/anchor.txt
   #output_path: "./Outputs/hnd3/anchor.txt"
 
-language_model_config:
-  Model_type: "manual_class"  # choices: llm, medical_llm, sbert, manual_class
-  Model_name: "gpt-4.1" # choices: gpt-4.1, "gemini-2.0-flash" for llm , biogpt and pubmedgpt for medical_llm
-  Instruction: "instruction.txt"
-  Class_name: "FH" # if model_type is manual_class, please input the class name
 
-anchor_descriptors_config:
+# find a feasible support image with text
+locate_config:
+  turn_on: False
+  # choices: label, label+img 
+  # this label+img uses the anchor image to locate after the label is found
+  locate_method: "label" 
+
+anchor_kpts_config:
+  turn_on: True
+  # choices: random, omniglue, sp
+  descriptor_type: "omniglue"  
   og_export: "./checkpoints/omniglue.onnx"
   sp_export: "./checkpoints/sp_v6.onnx"
   dino_export: "./checkpoints/dinov2_vitb14_pretrain.pth"
@@ -33,14 +60,16 @@ anchor_descriptors_config:
   ssim_max: 0.99         # optional, h: 0.95
 
 classify_kps:
+  turn_on: True
+  region: "subregion" # choices: whole, subregion
   feature_json_folder: "support/mask_features/"
   feature_json_path: "support/mask_features/hw_00004_avg_features.json"
-  class_method: "omniglue"  # choices: cluster, point, fall_smask, cross_attn,matching
-  support_img_path: "imgs/shd_00015.jpg"
-  support_mask_path: "mask/shd_00015.png"
+  class_method: "omniglue"  # choices: cluster, point, fall_smask, cross_attn, matching
+
   color_map_path: "suv.json"
 
 suv_auto:
+  turn_on: False
   seg_model: "sam2"
   sam2_checkpoint: "./checkpoints/sam2.1_hiera_large.pt"
   model_cfg: "configs/sam2.1/sam2.1_hiera_l.yaml"

@@ -41,6 +41,7 @@ class MedicalTermMapper:
         'prxpx': {'standard': 'proximal phalanx', 'features': ['short', 'curved']},
         'ucl': {'standard': 'ulnar collateral ligament', 'features': ['band-like']},
         'small and white curve': {'mapping': ['prxpx', 'mc']},
+        'sp': {'standard': 'vertebral','mapping': ['sp', 'vertebral arch']},
         'bone structure': {'mapping': ['prxpx', 'mc', 'vertebra']}
     }
 
@@ -121,7 +122,7 @@ class StructureMatcher:
         top_result = results[0] if results else (None, "", 0)
         top_struct_id, top_text, top_score = top_result
 
-        # 在top文本中查找是否包含某些标准术语
+        # 在top文本中查找是否包含某些标准术语,这里需要改，只要找到top 1 结构ID就可以对着id找类别
         detected_terms = []
         for key, entry in self.term_mapper.MEDICAL_LEXICON.items():
             if isinstance(entry, dict) and 'standard' in entry:
@@ -145,10 +146,8 @@ class StructureMatcher:
 # 示例用法
 import argparse
 def load_test_cases(path):
-    if path.endswith(".json"):
-        with open(path, 'r') as f:
-            return json.load(f)
-    elif path.endswith(".txt"):
+
+    if path.endswith(".txt"):
         with open(path, 'r') as f:
             return [line.strip() for line in f if line.strip()]
     else:
@@ -161,7 +160,7 @@ if __name__ == "__main__":
     parser.add_argument("--instruction", type=str, required=True, help="Path to text or JSON file containing test instructions")
     parser.add_argument("--api_key", type=str, required=False, help="API key for the LLM")
     parser.add_argument("--model_name", type=str, default=None, help="Model name for the LLM (e.g., gpt-4, gemini-pro)")
-
+    parser.add_argument("--output_path", type=str, default=None, help="Path to save the output results")
     args = parser.parse_args()
 
     test_cases = load_test_cases(args.instruction)
@@ -180,7 +179,7 @@ if __name__ == "__main__":
 
         # 保存top1结构ID和类别
         if top_id:
-            with open("Outputs/seg_target_res_vit.txt", "w") as f:
+            with open(args.output_path.replace('cat','id'), "w") as f:
                 f.write(f"{top_id}\n")
-            with open("Outputs/seg_target_cat_vit.txt", "w") as f:
+            with open(args.output_path, "w") as f:
                 f.write(", ".join(categories) + "\n")

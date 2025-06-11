@@ -1,3 +1,7 @@
+"""
+在候选帧中尝试找出能覆盖最大差异的子集，而不是顺序判断加入。
+"""
+
 import os
 import glob
 import cv2
@@ -16,59 +20,63 @@ def compute_entropy(gray_img):
 
 def pick_frames(folder, top_percent=0.1, ssim_diff_threshold=0.02, max_keyframes=None, use_percentile=True):
     """
-    改进后的多关键帧筛选方法：
-    1. 根据熵值选择候选帧（前top_percent或分位数阈值以上）
-    2. 迭代筛选出与所有已选关键帧差异足够大的帧
+    改进逻辑：优先选择与已选关键帧差异最大的帧，提升多样性。
     """
     image_paths = sorted(glob.glob(os.path.join(folder, "*.jpg")))
-    #print(image_paths)
-
     if not image_paths:
         return []
-    # 读取所有帧并计算熵值
+
+    # === Step 1: 计算熵值 ===
     frame_info_list = []
     for idx, path in enumerate(image_paths):
         img = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
         if img is None:
             continue
-        info_val = compute_entropy(img)
-        frame_info_list.append((idx, path, info_val, img))
+        entropy = compute_entropy(img)
+        frame_info_list.append((idx, path, entropy, img))
 
     if not frame_info_list:
         return []
-    frame_info_list.sort(key=lambda x: x[2], reverse=True)  # 按熵降序排序
-    # 确定候选池
+
+    # === Step 2: 根据熵选候选帧 ===
+    frame_info_list.sort(key=lambda x: x[2], reverse=True)
     if use_percentile:
         all_entropies = [x[2] for x in frame_info_list]
-        percentile = (1 - top_percent) * 100  # 转换为分位数
-        entropy_threshold = np.percentile(all_entropies, percentile)
+        entropy_threshold = np.percentile(all_entropies, (1 - top_percent) * 100)
         candidate_frames = [x for x in frame_info_list if x[2] >= entropy_threshold]
     else:
         top_n = int(np.ceil(len(frame_info_list) * top_percent))
         candidate_frames = frame_info_list[:top_n]
-    #print(len(candidate_frames))
 
+    # === Step 3: 贪心选择差异最大的一组帧 ===
     key_frames = []
-    for candidate in candidate_frames:
-        if len(key_frames) >= max_keyframes:
-            break
-        idx, path, info_val, gray_img = candidate
-        # 检查与所有已选关键帧的差异
-        qualified = True
-        for kf in key_frames:
-            ssim_score, _ = ssim(gray_img, kf[3], full=True)
-            if (1 - ssim_score) <= ssim_diff_threshold:
-                qualified = False
-                break
-            else:
-                pass
-                #print("===",ssim_score)
-        if qualified:
-            key_frames.append(candidate)
+    used = [False] * len(candidate_frames)
 
-    # 按帧索引排序输出
+    # 先选熵值最高的第一个
+    key_frames.append(candidate_frames[0])
+    used[0] = True
+
+    while len(key_frames) < max_keyframes and not all(used):
+        max_diff = -1
+        next_idx = -1
+        for i, (idx, path, entropy, img) in enumerate(candidate_frames):
+            if used[i]:
+                continue
+            # 与所有已选关键帧的最小相似度
+            min_ssim = min(ssim(img, kf[3]) for kf in key_frames)
+            diff = 1 - min_ssim
+            if diff > max_diff:
+                max_diff = diff
+                next_idx = i
+        if max_diff >= ssim_diff_threshold and next_idx != -1:
+            key_frames.append(candidate_frames[next_idx])
+            used[next_idx] = True
+        else:
+            break  # 没有更多足够不同的帧了
+
     key_frames.sort(key=lambda x: x[0])
     return [(k[0], k[1], k[2]) for k in key_frames]
+
 
 import argparse
 
@@ -81,10 +89,9 @@ if __name__ == "__main__":
     parser.add_argument("--ssim_diff_threshold", type=float, default=0.2, help="SSIM difference threshold")
     parser.add_argument("--max_keyframes", type=int, default=4, help="Maximum number of keyframes")
     parser.add_argument("--use_percentile", type=bool, default=False, help="Use percentile-based entropy threshold")
-
+    parser.add_argument("--output_path", type=str, default=None, help="Path to save the keyframes")
     args = parser.parse_args()
     folder = args.folder
-    #print(folder,"=====")
     folder_name = folder.split("/")[-1]
     img_folder = os.path.join(folder, "imgs")
     print(img_folder,"image_folder!")
@@ -99,17 +106,20 @@ if __name__ == "__main__":
     for idx, path, info in key_frames:
         print(f"帧 {idx}: 路径= {path}, 熵={info:.2f}")
 
-
+    import shutil
     # 保存关键帧索引到文本文件
-    os.makedirs("Outputs/" + folder_name, exist_ok=True)
-    print(folder_name)
-    output_path = os.path.join("Outputs/" + folder_name + "/anchor.txt")
-    cnt=1
+    output_path = args.output_path
+    output_folder = output_path.replace(".txt", "/")
+    if os.path.exists(output_folder):
+        shutil.rmtree(output_folder)
+    os.makedirs(output_folder, exist_ok=True)
+
     with open(output_path, "w") as f:
         for idx, path, _ in key_frames:
-            path="./Datasets/SPUS/DIFF/S1401/imgs/0000"+str(cnt)+".jpg"
             filename = os.path.basename(path)
             f.write(f"{filename}\n")
-            cnt+=1
-            if (cnt>3): break
+            src_path = os.path.join(img_folder, filename)
+            dst_path = os.path.join(output_folder, filename)  # 保留原文件名
+            shutil.copy(src_path, dst_path)
+
     print(f"关键帧索引已保存到: {output_path}")
