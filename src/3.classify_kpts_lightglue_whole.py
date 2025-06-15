@@ -7,9 +7,6 @@ import matplotlib.pyplot as plt
 import torch
 import onnxruntime as ort
 import cv2
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 
 
 def parse_args():
@@ -21,8 +18,7 @@ def parse_args():
     parser.add_argument("--click_save_folder", required=True, help="Output folder for click results")
     parser.add_argument("--anchor_file", required=True, help="List of image filenames to process")
     parser.add_argument("--target_class", required=True, help="Target class name for classification")
-    parser.add_argument("--lg_export", required=False, default=None)
-    parser.add_argument("--sp_export", required=False, default=None)
+    parser.add_argument("--lg_export", required=False, default="./checkpoints/superpoint_lightglue_pipeline.ort.onnx")
     return parser.parse_args()
 
 
@@ -34,48 +30,24 @@ def preprocess_image(image_path, size=1024):
     return img_np[None, None, :, :], np.array(img), orig_size
 
 
-def run_lightglue_onnx(img0_path, img1_path, lg_path, sp_path):
-    extractor_type = "superpoint"  
-    extractor_path = sp_path
-    lightglue_path = lg_path
-
+def run_lightglue_onnx(img0_path, img1_path, model_path):
     img0, img0_resized, img0_size = preprocess_image(img0_path)
     img1, img1_resized, img1_size = preprocess_image(img1_path)
-    print(img0_path, img1_path, "============")
-    
-    from lightglue import LightGlue, SuperPoint, DISK, SIFT, ALIKED, DoGHardNet
-    from lightglue.utils import load_image, rbd
-    from lightglue import viz2d
+    input_tensor = np.concatenate([img0, img1], axis=0)
+    sess = ort.InferenceSession(model_path, providers=["CUDAExecutionProvider"])
+    input_name = sess.get_inputs()[0].name
+    output_names = [o.name for o in sess.get_outputs()]
+    keypoints, matches, scores = sess.run(output_names, {input_name: input_tensor})
 
-    # SuperPoint+LightGlue
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  # 'mps', 'cpu'
-
-    extractor = SuperPoint(max_num_keypoints=1024).eval().to(device)  # load the extractor
-    matcher = LightGlue(features='superpoint').eval().to(device)  # load the matcher
-
-
-    # load each image as a torch.Tensor on GPU with shape (3,H,W), normalized in [0,1]
-    image0 = load_image(img0_path)#.cuda()
-    image1 = load_image(img1_path)#.cuda()
-
-    # extract local features
-    feats0 = extractor.extract(image0.to(device))  # auto-resize the image, disable with resize=None
-    feats1 = extractor.extract(image1.to(device))
-
-    # match the features
-    matches01 = matcher({'image0': feats0, 'image1': feats1})
-    feats0, feats1, matches01 = [rbd(x) for x in [feats0, feats1, matches01]]  # remove batch dimension
-    kpts0, kpts1, matches = feats0["keypoints"], feats1["keypoints"], matches01["matches"]
-    m_kpts0, m_kpts1 = kpts0[matches[..., 0]], kpts1[matches[..., 1]]
-
-    axes = viz2d.plot_images([image0, image1])
-    viz2d.plot_matches(m_kpts0, m_kpts1, color="lime", lw=0.2)
-    viz2d.add_text(0, f'Stop after {matches01["stop"]} layers', fs=20)
-
-    kpc0, kpc1 = viz2d.cm_prune(matches01["prune0"]), viz2d.cm_prune(matches01["prune1"])
-    viz2d.plot_images([image0, image1])
-    viz2d.plot_keypoints([kpts0, kpts1], colors=[kpc0, kpc1], ps=10)
-    plt.show()
+    kp0 = keypoints[0]
+    kp1 = keypoints[1]
+    match_coords = []
+    for (batch_idx, idx0, idx1), score in zip(matches, scores):
+        if batch_idx == 0:
+            pt0 = kp0[idx0]  # query
+            pt1 = kp1[idx1]  # support
+            match_coords.append((pt0, pt1, score))
+    return match_coords, img0_resized, img0_size, img1_size
 
 
 def main():
@@ -105,10 +77,43 @@ def main():
         if not os.path.exists(image_path):
             print(f"❌ 缺失帧：{fname}")
             continue
-    
-    run_lightglue_onnx(image_path, args.ref_img_path, args.lg_export, args.sp_export)
-        
 
+        matches, img0_resized, img0_size, img1_size = run_lightglue_onnx(image_path, args.ref_img_path, args.lg_export)
+        labels = []
+        H0, W0 = img0_resized.shape
+        W1, H1 = img1_size
+
+        for pt0, pt1, score in matches:
+            if score < 0.02:
+                continue
+            x1, y1 = pt1
+            x1_orig = int(round(x1 / 1024 * W1))
+            y1_orig = int(round(y1 / 1024 * H1))
+
+            if 0 <= y1_orig < mc_mask.shape[0] and 0 <= x1_orig < mc_mask.shape[1]:
+                label = 1 if mc_mask[y1_orig, x1_orig] > 0 else 0
+            else:
+                label = 0
+
+            x0, y0 = pt0
+            x0_orig = x0 / 1024 * img0_size[0]
+            y0_orig = y0 / 1024 * img0_size[1]
+            labels.append((x0_orig, y0_orig, label))
+
+        if len(labels) < 2:
+            continue
+
+        save_txt = os.path.join(args.click_save_folder, f"{stem}.txt")
+        with open(save_txt, "w") as f:
+            for x, y, label in labels:
+                f.write(f"{x:.2f},{y:.2f},{label}\n")
+
+        vis_img = cv2.imread(image_path)
+        for x, y, label in labels:
+            x, y = int(x), int(y)
+            color = (0, 0, 255) if label == 0 else (255, 255, 0)
+            cv2.circle(vis_img, (x, y), 2, color, -1)
+        plt.imsave(os.path.join(args.click_save_folder, f"{stem}_vis.png"), vis_img[..., ::-1])
 
     print("✅ LightGlue 匹配与标注完成，结果已保存。")
 

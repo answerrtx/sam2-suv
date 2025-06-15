@@ -29,7 +29,12 @@ def main(config_path):
     output_folder = os.path.join(output_root, folder)
     os.makedirs(output_folder, exist_ok=True)
 
-    
+    # pretrained models
+    og_export = cfg['og_export']
+    sp_export = cfg['sp_export']
+    dino_export = cfg['dino_export']
+    lg_export = cfg['lg_export']
+
     image_folder = os.path.join(base, folder)
     mask_folder = os.path.join(base, f"{folder}_masks")
     
@@ -39,7 +44,7 @@ def main(config_path):
     anchor_file = os.path.join(output_folder, "anchor.txt") # to put anchor frame index
     kpt_folder = os.path.join(output_folder, "kpts")     # to put keypoints
 
-    # === 0. Specify the type of instruction ===
+    # region === 0. Specify the type of instruction ===
     instruction_cfg = cfg['instruction_config']
     turn_on_instruction = instruction_cfg.get('turn_on', True)
     text_path = instruction_cfg['text_path']
@@ -59,11 +64,10 @@ def main(config_path):
                 if text_model_type == "manual_class":
                     class_name = model_cfg['Class_name']
                     manual_path = os.path.join(output_folder, "seg_target_cat.txt")
-                    class_txt_path = manual_path
                     with open(manual_path, 'w') as f:
                         f.write(class_name)
                     print(f"[Manual Class] was specified as '{class_name}'，write to {manual_path}")
-
+                    class_txt_path = manual_path
                 elif text_model_type in ["llm", "medical_llm", "minillm"]:
                     script_map = {
                         "llm": "src/1.match_desc_llm.py",
@@ -94,9 +98,10 @@ def main(config_path):
     assert(os.path.exists(class_txt_path) or (os.path.exists(ref_image_path) \
     and os.path.exists(ref_mask_path))), \
     f"Class text file {class_txt_path} does not exist. Please run instruction step first."
-
-
-    # !! 还没写step的 === 0. Anchor Frame Selection === 
+    print(class_txt_path)
+    # endregion
+    
+    # region !! 还没写step的 === 0. Anchor Frame Selection === 
     print(" select anchor frames")
     anchor_cfg = cfg['anchor_frame_config']
     anchor_type = anchor_cfg['anchor_type'].lower()
@@ -128,25 +133,32 @@ def main(config_path):
         assert(os.path.exists(anchor_file)), \
                f"Anchor file {anchor_file} does not exist. Please run anchor frame selection first."
         
+    ref_img = ""
+    ref_mask = ""
+    # endregion
 
-    # === 3. locate optimal support image ===
+    # region === 3. locate optimal support image ===
     locate_cfg = cfg['locate_config']
     turn_on_locate = locate_cfg.get('turn_on', True)
     if not turn_on_locate:
         assert(instruction_type == 'image'), \
             f"Please run locate support image step first."
+        if instruction_type == 'image':
+            ref_img = instruction_cfg['image_path']
+            ref_mask = instruction_cfg['mask_path']
     else:
         if instruction_type == 'image':
-            support_img = instruction_cfg['image_path']
-            support_mask = instruction_cfg['mask_path']
+            ref_img = instruction_cfg['image_path']
+            ref_mask = instruction_cfg['mask_path']
         else:
             locate_method = locate_cfg['locate_method'].lower()
             if locate_method == 'label':
-                support_img, support_mask = None
+                ref_img, ref_mask = None
             elif  locate_method == 'label+img':
-                support_img, support_mask = None
+                ref_img, ref_mask = None
+    # endregion
 
-    # === 2. Initial Anchor Descriptors ===
+    # region === 2. Initial Anchor Descriptors ===
     print("generate anchor descriptors")
     anchor_desc_cfg = cfg['anchor_kpts_config']
     descriptor_type = anchor_desc_cfg['descriptor_type'].lower()
@@ -156,16 +168,31 @@ def main(config_path):
         if descriptor_type not in ['random', 'omniglue', 'superpoint']:
             raise ValueError(f"Unsupported descriptor_type: {descriptor_type}")
         if descriptor_type == 'random':
-            pass
+            assert(os.path.exists(og_export) and os.path.exists(sp_export) \
+                     and os.path.exists(dino_export)), \
+                 f"Please check the paths of og_export, sp_export, dino_export in config."
+            run_command("src/2.generate_anchor_rd_kpts.py", [
+                "--image_folder", image_folder,
+                "--anchor_file", anchor_file,
+                "--output", kpt_folder,
+                "--og_export", og_export,
+                "--sp_export", sp_export,
+                "--dino_export", dino_export,
+                "--ssim_min", str(anchor_desc_cfg.get('ssim_min', 0.8)),
+                "--ssim_max", str(anchor_desc_cfg.get('ssim_max', 0.95))
+            ])
 
         elif descriptor_type == 'omniglue':
+            assert(os.path.exists(og_export) and os.path.exists(sp_export) \
+                     and os.path.exists(dino_export)), \
+                 f"Please check the paths of og_export, sp_export, dino_export in config."
             run_command("src/2.generate_anchor_kpts.py", [
                 "--image_folder", image_folder,
                 "--anchor_file", anchor_file,
                 "--output", kpt_folder,
-                "--og_export", anchor_desc_cfg['og_export'],
-                "--sp_export", anchor_desc_cfg['sp_export'],
-                "--dino_export", anchor_desc_cfg['dino_export'],
+                "--og_export", og_export,
+                "--sp_export", sp_export,
+                "--dino_export", dino_export,
                 "--ssim_min", str(anchor_desc_cfg.get('ssim_min', 0.8)),
                 "--ssim_max", str(anchor_desc_cfg.get('ssim_max', 0.95))
             ])
@@ -178,23 +205,29 @@ def main(config_path):
     # === 3. Classify Points ===
     print("classify kpts")
     if class_name == "":
-        class_name = readtext(class_txt_path).strip() if class_txt_path else ""
-    print(f"[Classify Points] 从 {class_txt_path} 读取到目标类别：'{class_name}'")
+        if instruction_type == 'text':
+            class_name = readtext(class_txt_path).strip() if class_txt_path else ""
+            print(f"[Classify Points] 从 {class_txt_path} 读取到目标类别：'{class_name}'")
+        elif instruction_type == 'image':
+            mask_list = instruction_cfg['target_mask']
+            print(mask_list, type(mask_list))
+            class_name = "image_class"
+
     classify_cfg = cfg['classify_kps']
     turn_on_kpts = classify_cfg.get('turn_on', True)
 
-    kpt_folder = os.path.join(output_folder, class_name,"kpts")
-    click_folder = os.path.join(output_folder, class_name, "clicks")
     method = classify_cfg['class_method'].lower()
+    click_folder = os.path.join(output_folder, class_name, cfg['click_folder'])
 
     script_map = {
+        "omniglue": "src/3.classify_kpts_omniglue.py",
+        "lightglue": "src/3.classify_kpts_lightglue.py",
         "cluster": "src/3.classify_points_cluster.py",
         "point": "src/3.classify_points_sig_pt.py",
         "cross_attn": "src/3.classify_kpts_cross_attn.py",
         "histogram": "src/3.classify_kpts_histogram.py",
         "matching": "src/3.classify_kpts_matching.py",
-        "omniglue": "src/3.classify_kpts_omniglue.py",
-        "lightglue": "src/3.classify_kpts_lightglue.py",
+
     }
 
 
@@ -206,18 +239,34 @@ def main(config_path):
         if method not in script_map:
             raise ValueError(f"Unsupported class_method: {method}")
         color_map_path = os.path.join(base, classify_cfg['color_map_path'])
+        subregion = classify_cfg['subregion']
+        common_args = [
+            "--image_folder", image_folder,
+            "--ref_img_path", ref_img,
+            "--ref_mask_path", ref_mask,
+            "--color_map_path", color_map_path,
+            "--click_save_folder", click_folder,
+            "--anchor_file", anchor_file,
+            "--target_class", class_name,
+        ]
+
         if method == "omniglue":
-            support_img_path = os.path.join(support, classify_cfg['support_img_path'])
-            support_mask_path = os.path.join(support, classify_cfg['support_mask_path'])
-            run_command(script_map[method], [
-                "--image_folder", image_folder,
-                "--support_img_path", support_img_path,
-                "--support_mask_path", support_mask_path,
-                "--color_map_path", color_map_path,
-                "--click_save_folder", kpt_folder,
-                "--index_file", anchor_file,
-                "--target_class", class_name
-            ])
+            extra_args = [
+                "--og_export", og_export,
+                "--sp_export", sp_export,
+                "--dino_export", dino_export,
+                "--subregion", str(subregion),
+                "--kpt_folder", kpt_folder
+            ]
+            run_command(script_map[method], common_args + extra_args)
+
+        elif method == "lightglue":
+            extra_args = [
+                "--lg_export", lg_export,
+                "--sp_export", sp_export,
+            ]
+            run_command(script_map[method], common_args + extra_args)
+
         elif method == "cross_attn":
             feature_json_folder = os.path.join(base,classify_cfg['feature_json_folder'])
             run_command(script_map[method], [
@@ -255,18 +304,7 @@ def main(config_path):
                 "--index_file", anchor_file,
                 "--match_kpt_folder", kpt_folder
             ])
-        elif method == "lightglue":
-            support_img_path = os.path.join(support, classify_cfg['support_img_path'])
-            support_mask_path = os.path.join(support, classify_cfg['support_mask_path'])
-            run_command(script_map[method], [
-                "--image_folder", image_folder,
-                "--support_img_path", support_img_path,
-                "--support_mask_path", support_mask_path,
-                "--color_map_path", color_map_path,
-                "--click_save_folder", kpt_folder,
-                "--index_file", anchor_file,
-                "--target_class", class_name
-            ])
+
         else:
             # 其他通用分类方法
             feature_path = os.path.join(base,classify_cfg['feature_json_path'])
@@ -279,18 +317,20 @@ def main(config_path):
             ])
 
     # 计算有多少个point会落入gt_正确的mask
+    if classify_cfg.get('evaluate', True):
+        save_json_path = os.path.join(cfg['output_root'], folder, class_name, "point_hit_stats.json")
 
-    save_json_path = os.path.join(cfg['output_root'], folder, class_name, "point_hit_stats.json")
+        run_command("src/1.5.check_points_in_gt_mask.py", [
+            "--base_dataset_path", cfg['base_dataset_path'],
+            "--folder_name", folder,
+            "--click_folder", click_folder,
+            "--save_path", save_json_path,
+            "--class_name", cfg["language_model_config"]["Class_name"],
+            "--suv_json_path", cfg["color_map_path"],
 
-    run_command("src/1.5.check_points_in_gt_mask.py", [
-        "--base_dataset_path", cfg['base_dataset_path'],
-        "--folder_name", folder,
-        "--click_folder", click_folder,
-        "--save_path", save_json_path,
-        "--class_name", cfg["language_model_config"]["Class_name"],
-        "--suv_json_path", cfg["color_map_path"],
-
-    ])        
+        ])        
+    else:
+        print("skip evaluate points in gt mask")
 
     result_folder = os.path.join(output_folder, class_name, "result")
     
