@@ -23,6 +23,9 @@ def parse_args():
     parser.add_argument("--target_class", required=True, help="Target class name for classification")
     parser.add_argument("--lg_export", required=False, default=None)
     parser.add_argument("--sp_export", required=False, default=None)
+    parser.add_argument("--kpt_folder", required=False, default=None, help="Folder to load keypoints")
+    parser.add_argument("--subregion", type=str, default=None, required=True)
+
     return parser.parse_args()
 
 
@@ -34,7 +37,7 @@ def preprocess_image(image_path, size=1024):
     return img_np[None, None, :, :], np.array(img), orig_size
 
 
-def run_lightglue_onnx(img0_path, img1_path, lg_path, sp_path):
+def run_lightglue_onnx(img0_path, img1_path, lg_path, sp_path, match_mask=None, ref_mask=None):
     extractor_type = "superpoint"  
     extractor_path = sp_path
     lightglue_path = lg_path
@@ -59,8 +62,11 @@ def run_lightglue_onnx(img0_path, img1_path, lg_path, sp_path):
     image1 = load_image(img1_path)#.cuda()
 
     # extract local features
-    feats0 = extractor.extract(image0.to(device))  # auto-resize the image, disable with resize=None
-    feats1 = extractor.extract(image1.to(device))
+    #feats0 = extractor.extract(image0.to(device))  # auto-resize the image, disable with resize=None
+    #feats1 = extractor.extract(image1.to(device))
+
+    feats0 = extractor.extract(image0.to(device), mask=match_mask.to(device))
+    feats1 = extractor.extract(image1.to(device), mask=ref_mask.to(device))
 
     # match the features
     matches01 = matcher({'image0': feats0, 'image1': feats1})
@@ -77,7 +83,8 @@ def run_lightglue_onnx(img0_path, img1_path, lg_path, sp_path):
     viz2d.plot_keypoints([kpts0, kpts1], colors=[kpc0, kpc1], ps=10)
     plt.show()
 
-
+from collections import defaultdict
+import cv2
 def main():
     args = parse_args()
     os.makedirs(args.click_save_folder, exist_ok=True)
@@ -85,11 +92,13 @@ def main():
     with open(args.color_map_path, "r") as f:
         color_map = json.load(f)
         color_map = {tuple(map(int, k.strip("()").split(","))): v for k, v in color_map.items()}
-        mc_color = [k for k, v in color_map.items() if v == "Deltoid"][0]#args.target_class][0]
+        mc_color = [k for k, v in color_map.items() if v == args.target_class][0]
 
     mask_img = Image.open(args.ref_mask_path).convert("RGB")
     mask_np = np.array(mask_img)
     mc_mask = np.all(mask_np == mc_color, axis=-1).astype(np.uint8)
+    image_folder = os.path.join(args.image_folder, "imgs")
+    ref_mask1 = mc_mask.astype(np.uint8) * 255
 
     support_img = Image.open(args.ref_img_path)
     support_w, support_h = support_img.size
@@ -106,9 +115,54 @@ def main():
             print(f"❌ 缺失帧：{fname}")
             continue
     
-    run_lightglue_onnx(image_path, args.ref_img_path, args.lg_export, args.sp_export)
-        
+        # 加载 image0 的尺寸信息
+        image0_pil = Image.open(image_path).convert("RGB")
+        h, w = image0_pil.height, image0_pil.width
+        image0 = np.array(image0_pil)
 
+        # === 加载 cluster keypoints 文件（和 OmniGlue 相同逻辑） ===
+        kpt_path = os.path.join(args.kpt_folder, f"{stem}.txt")
+        if args.subregion!=None and args.kpt_folder:
+
+            if not os.path.exists(kpt_path):
+                print(f"⚠️ 缺失 cluster 信息文件：{kpt_path}")
+                continue
+
+            with open(kpt_path, "r") as f:
+                cluster_points = defaultdict(list)
+                for line in f:
+                    parts = line.strip().split(",")
+                    if len(parts) == 3:
+                        x, y, cluster = float(parts[0]), float(parts[1]), parts[2].strip()
+                        cluster_points[cluster].append([x, y])
+
+            best_cluster = None
+            best_score = -1
+            best_mask = None
+
+            for cluster_name, points in cluster_points.items():
+                if len(points) < 3:
+                    continue
+
+                # === 计算 cluster mask ===
+                cluster_mask = np.zeros((h, w), dtype=np.uint8)
+                pts = np.array(points, dtype=np.int32)
+                hull = cv2.convexHull(pts)
+                cv2.fillConvexPoly(cluster_mask, hull, 255)
+            
+                # === 转为 tensor mask 传给 SuperPoint ===
+                match_mask_tensor = torch.from_numpy(cluster_mask / 255.0).float()
+                ref_mask_tensor = torch.from_numpy(ref_mask1 / 255.0).float()
+
+                # === 调用 LightGlue 特征提取与匹配 ===
+                run_lightglue_onnx(
+                    image_path,
+                    args.ref_img_path,
+                    lg_path=args.lg_export,
+                    sp_path=args.sp_export,
+                    match_mask=match_mask_tensor,
+                    ref_mask=ref_mask_tensor,
+                )
 
     print("✅ LightGlue 匹配与标注完成，结果已保存。")
 

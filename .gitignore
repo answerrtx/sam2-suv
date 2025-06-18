@@ -10,3 +10,5 @@ assets/
 Output/
 fea_vis_outputs/
 atest_output/
+__pycache__/
+lightglue/__pycache__/

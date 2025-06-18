@@ -63,7 +63,7 @@ def main():
     with open(args.color_map_path, "r") as f:
         color_map = json.load(f)
         color_map = {tuple(map(int, k.strip("()").split(","))): v for k, v in color_map.items()}
-        mc_color = [k for k, v in color_map.items() if v == "Deltoid"][0]#args.target_class][0]
+        mc_color = [k for k, v in color_map.items() if v == args.target_class][0]
 
     # === 加载 support 掩膜并提取 区域 ===
     mask_img = Image.open(args.ref_mask_path).convert("RGB")

@@ -10,8 +10,8 @@ import matplotlib.cm as cm
 
 # 路径配置
 
-image_path = "./Datasets/MSKUSO/hp8/imgs/00035.jpg"
-mask_path = "./Datasets/MSKUSO/hp8/mask/00035_mask.png"
+image_path = "./Datasets/MSKUSO/view_feature/hp8/imgs/00035.jpg"
+mask_path = "./Datasets/MSKUSO/view_feature/hp8/mask/00035_mask.png"
 #image_path = "./Datasets/SPUS/DIFF/S1602/imgs/00035.jpg"
 #mask_path = "./Datasets/SPUS/DIFF/S1602/mask/00035_mask.png"
 suv_json_path = "./suv_all.json"
@@ -73,7 +73,7 @@ if len(patch_features) == 0:
     raise ValueError("No matching color found in mask file.")
 
 # t-SNE 降维
-tsne = TSNE(n_components=2, perplexity=15, random_state=42)
+tsne = TSNE(n_components=2, perplexity=15, init='pca', random_state=42)
 features_2d = tsne.fit_transform(np.array(patch_features))
 
 # 为每个标签分配颜色
@@ -92,21 +92,26 @@ fig, axs = plt.subplots(1, 2, figsize=(14, 6))
 for label in fine_unique:
     idxs = [i for i, l in enumerate(patch_labels_fine) if l == label]
     coords = features_2d[idxs]
-    axs[0].scatter(coords[:, 0], coords[:, 1], label=label, color=fine_color_map[label], s=20, alpha=0.7)
-axs[0].set_title("Fine-Grained Labels")
-axs[0].set_xlabel("t-SNE Dim 1")
-axs[0].set_ylabel("t-SNE Dim 2")
-axs[0].legend(fontsize='x-small', bbox_to_anchor=(1.05, 1), loc='upper left')
+    axs[0].scatter(coords[:, 0], coords[:, 1], label=label, color=fine_color_map[label], s=20, alpha=1)
+axs[0].set_title("t-SNE of DINOv2 Features by Fine-grained Labels")
+axs[0].set_xlabel('')
+axs[0].set_ylabel('')
+axs[0].set_xticks([])
+axs[0].set_yticks([])
+axs[0].legend(fontsize='large', markerscale=1, loc='best')
 
 # 粗粒度图
 for label in coarse_unique:
     idxs = [i for i, l in enumerate(patch_labels_coarse) if l == label]
     coords = features_2d[idxs]
-    axs[1].scatter(coords[:, 0], coords[:, 1], label=label, color=coarse_color_map[label], s=20, alpha=0.7)
-axs[1].set_title("Coarse-Grained Labels")
-axs[1].set_xlabel("t-SNE Dim 1")
-axs[1].set_ylabel("t-SNE Dim 2")
-axs[1].legend(fontsize='x-small', bbox_to_anchor=(1.05, 1), loc='upper left')
+    axs[1].scatter(coords[:, 0], coords[:, 1], label=label, color=coarse_color_map[label], s=20, alpha=1)
+axs[1].set_title("t-SNE of DINOv2 Features by Coarse-Grained Labels")
+axs[1].set_xlabel('')
+axs[1].set_ylabel('')
+axs[1].set_xticks([])
+axs[1].set_yticks([])
+#axs[1].legend(fontsize='x-small', bbox_to_anchor=(1.05, 1), loc='upper left')
+axs[1].legend(fontsize='large', markerscale=1, loc='best')
 
 plt.tight_layout()
 plt.show()

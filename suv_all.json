@@ -1,6 +1,6 @@
 {
     "bone": [
-      "VA", "MC", "PrxPX", "ADd", "Sca", "LU", "T", "Rad", "bone", "FH", "FN", "AIIS",
+      "VA", "MC", "PrxPX", "ADd", "Sca", "LU", "T", "Rad", "bone", "FH", "FN", "AIIS", 
       "Hum", "ACR", "CLV", "P", "Fem", "Tib", "GtrTroch", "A", "VB", "S", "TP", "AP", "L", "Ul", "HH"
     ],
     "ligament": [
@@ -14,6 +14,9 @@
     ],
     "vessel": [
       "Vessel"
+    ],
+    "background": [
+      "__bg__"
     ],
     "color_map":{
         "(255, 0, 0)": "VA",

@@ -12,6 +12,8 @@ from io import BytesIO
 dinov2 = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14')
 dinov2.eval()
 path0="./Datasets/SPUS/DIFF/S1602/imgs/00024.jpg"
+path0="./Datasets/MSKUSO/view_feature/hp8/imgs/00035.jpg"
+vis = path0.replace('imgs', 'vis').replace('.jpg', '_vis.png')
 #path0="./Datasets/MSKUSO/hp12/imgs/00029.jpg"
 
 #path0="./Datasets/MSKUSO/support/hip_imgs/hp_00004.jpg"
@@ -20,7 +22,7 @@ path0="./Datasets/SPUS/DIFF/S1602/imgs/00024.jpg"
 
 # 加载图像（你可以改成自己的路径）
 image = Image.open(path0).convert("RGB")
-
+vis = Image.open(vis).convert("RGB")
 # DINOv2 标准预处理
 transform = transforms.Compose([
     transforms.Resize((518, 518)),  # ViT patch size 通常是 14x14 or 16x16
@@ -57,10 +59,22 @@ tsne_rgb = np.concatenate([
     1 - np.linalg.norm(tsne_norm - 0.5, axis=2, keepdims=True)
 ], axis=2)  # [37, 37, 3]
 
-# 可视化 Patch 特征热图
-plt.figure(figsize=(6, 6))
-plt.imshow(tsne_rgb)
-plt.title("t-SNE Projection Mapped to Patch Grid")
-plt.axis('off')
+# 将 t-SNE 映射归一化后的结果转换为图像
+tsne_uint8 = (tsne_rgb * 255).astype(np.uint8)           # [37, 37, 3]
+tsne_img_pil = Image.fromarray(tsne_uint8)               # 转成 PIL 图像
+
+# 用 NEAREST 插值 resize 到原图大小，保持块状结构清晰
+tsne_img_resized = tsne_img_pil.resize(image.size, resample=Image.NEAREST)
+
+fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+
+axs[0].imshow(tsne_img_resized)
+axs[0].set_title("t-SNE Patch Grid (Resized, NEAREST)")
+axs[0].axis('off')
+
+axs[1].imshow(image)
+axs[1].set_title("Original Image")
+axs[1].axis('off')
+
 plt.tight_layout()
 plt.show()

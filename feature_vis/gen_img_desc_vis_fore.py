@@ -36,8 +36,7 @@ def main(save_fg_mask=False, img_size=224, output_folder="outputs"):
     start_idx = 1
     end_idx = 4
     img_cnt = end_idx-start_idx+1
-
-    images = [transform(Image.open(f"./Datasets/MSKUSO/shd2/imgs/00006.jpg")) for i in range(start_idx, end_idx+1)]
+    images = [transform(Image.open(f"./Datasets/MSKUSO/view_feature/hp8/imgs/00035.jpg")) for i in range(start_idx, end_idx+1)]
     images = np.stack(images)
     images = torch.FloatTensor(images).cuda()
     images_plot = ((images.cpu().numpy()*0.5+0.5)*255).transpose(0, 2, 3, 1).astype(np.uint8)

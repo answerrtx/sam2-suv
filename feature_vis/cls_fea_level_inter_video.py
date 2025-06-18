@@ -93,6 +93,7 @@ def process_dataset(root_dir, suv_json, max_per_folder=3):
 
             for color, fine_label in color_map.items():
                 coarse_label = fine_to_coarse.get(fine_label, "Unknown")
+                if(coarse_label=="Unknown"): continue
                 match = np.all(mask_np == color, axis=-1)
                 ys, xs = np.where(match)
                 coords = list(zip(xs, ys))
@@ -116,10 +117,10 @@ def process_dataset(root_dir, suv_json, max_per_folder=3):
 
 def visualize(features1, labels1, features2, labels2, out_path="tsne_dual_dino_features.png"):
     pca1 = PCA(n_components=50).fit_transform(features1)
-    tsne1 = TSNE(n_components=2, perplexity=30, random_state=42).fit_transform(features1)
+    tsne1 = TSNE(n_components=2, perplexity=30, init='pca', random_state=42).fit_transform(features1)
 
     pca2 = PCA(n_components=50).fit_transform(features2)
-    tsne2 = TSNE(n_components=2, perplexity=30, random_state=42).fit_transform(features2)
+    tsne2 = TSNE(n_components=2, perplexity=30, init='pca', random_state=42).fit_transform(features2)
 
     fig, axes = plt.subplots(1, 2, figsize=(18, 8))
 
@@ -128,19 +129,29 @@ def visualize(features1, labels1, features2, labels2, out_path="tsne_dual_dino_f
     for label in label_set1:
         indices = [i for i, l in enumerate(labels1) if l == label]
         axes[0].scatter(tsne1[indices, 0], tsne1[indices, 1],
-                        c=[color_map1[label]], label=label, alpha=0.7, s=14)
+                        c=[color_map1[label]], label=label, alpha=1, s=20)
     axes[0].set_title("t-SNE of DINOv2 Features by Fine-grained Labels")
-    axes[0].legend(fontsize='x-small', markerscale=1, bbox_to_anchor=(1.05, 1), loc='upper left')
+    #axes[0].legend(fontsize='x-small', markerscale=1, bbox_to_anchor=(1.05, 1), loc='upper left')
+    axes[0].legend(fontsize='large', markerscale=1, loc='best')
+    
 
     label_set2 = sorted(set(labels2))
     color_map2 = get_color_map(label_set2, cmap_name='tab10')
     for label in label_set2:
         indices = [i for i, l in enumerate(labels2) if l == label]
         axes[1].scatter(tsne2[indices, 0], tsne2[indices, 1],
-                        c=[color_map2[label]], label=label, alpha=0.7, s=14)
+                        c=[color_map2[label]], label=label, alpha=1, s=20)
     axes[1].set_title("t-SNE of DINOv2 Features by Coarse-grained Labels")
-    axes[1].legend(fontsize='x-small', markerscale=1, bbox_to_anchor=(1.05, 1), loc='upper left')
-
+    #axes[1].legend(fontsize='x-small', markerscale=1, bbox_to_anchor=(1.05, 1), loc='upper left')
+    axes[1].legend(fontsize='large', markerscale=1, loc='best')
+    axes[1].set_xlabel('')
+    axes[1].set_ylabel('')
+    axes[1].set_xticks([])
+    axes[1].set_yticks([])
+    axes[0].set_xlabel('')
+    axes[0].set_ylabel('')
+    axes[0].set_xticks([])
+    axes[0].set_yticks([])
     plt.tight_layout()
     plt.savefig(out_path, dpi=300)
     plt.show()
@@ -150,10 +161,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--root_dir', required=True, help='Path to MSKUSO dataset folder')
     parser.add_argument('--suv_json', required=True, help='Path to suv.json mapping')
-    parser.add_argument('--max_per_folder', type=int, default=3, help='How many images per subfolder to sample')
+    parser.add_argument('--max_per_folder', type=int, default=5, help='How many images per subfolder to sample')
+    parser.add_argument('--out_path', type=str, default='tsne_dual_dino_features.png', help='Output path for visualization')
     args = parser.parse_args()
 
     feats_fine, labels_fine, feats_coarse, labels_coarse = process_dataset(
         args.root_dir, args.suv_json, args.max_per_folder
     )
-    visualize(feats_fine, labels_fine, feats_coarse, labels_coarse)
+    visualize(feats_fine, labels_fine, feats_coarse, labels_coarse, out_path=args.out_path)
