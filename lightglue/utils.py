@@ -141,7 +141,16 @@ class Extractor(torch.nn.Module):
         assert img.dim() == 4 and img.shape[0] == 1
         shape = img.shape[-2:][::-1]
         img, scales = ImagePreprocessor(**{**self.preprocess_conf, **conf})(img)
-        feats = self.forward({"image": img})
+        data = {"image": img}
+        if "mask" in conf:
+            mask = conf["mask"]
+            if mask.dim() == 3:
+                mask = mask[None]  # add batch dim
+            data["mask"] = mask.to(img)
+
+        feats = self.forward(data)
+        
+
         feats["image_size"] = torch.tensor(shape)[None].to(img).float()
         feats["keypoints"] = (feats["keypoints"] + 0.5) / scales[None] - 0.5
         return feats

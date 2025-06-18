@@ -177,6 +177,23 @@ class SuperPoint(Extractor):
         scores = scores.permute(0, 1, 3, 2, 4).reshape(b, h * 8, w * 8)
         scores = simple_nms(scores, self.conf.nms_radius)
 
+        if "mask" in data:
+            mask = data["mask"].float()
+
+            # ➤ 确保 mask 是 [B, H, W] or [B, 1, H, W]
+            if mask.dim() == 2:
+                mask = mask.unsqueeze(0).unsqueeze(0)   # [1, 1, H, W]
+            elif mask.dim() == 3:
+                mask = mask.unsqueeze(1)                # [B, 1, H, W]
+
+            if mask.shape[-2:] != scores.shape[-2:]:
+                mask = torch.nn.functional.interpolate(
+                    mask, size=scores.shape[1:], mode="nearest"
+                )
+
+            mask = mask.squeeze(1)  # back to [B, H, W] to match scores
+            scores = scores * mask
+
         # Discard keypoints near the image borders
         if self.conf.remove_borders:
             pad = self.conf.remove_borders
