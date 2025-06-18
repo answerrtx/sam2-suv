@@ -12,3 +12,5 @@ fea_vis_outputs/
 atest_output/
 __pycache__/
 lightglue/__pycache__/*
+lightglue/__pycache__/
+outputs/
