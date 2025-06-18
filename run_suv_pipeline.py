@@ -17,6 +17,24 @@ def readtext(file_path):
         content = f.readline().strip()
     return content
 
+def get_image_class(color_map_path, mask_list):
+    """
+    从颜色映射文件中获取图像类别
+    :param color_map_path: 颜色映射文件路径
+    :param mask_list: 目标掩码列表
+    """
+    with open(color_map_path, 'r') as f:
+        color_map = yaml.safe_load(f)
+
+    if not mask_list or len(mask_list) != 1:
+        raise ValueError("Expected one target mask, but got multiple or none.")
+
+    target_mask = str(mask_list[0])
+    if target_mask not in color_map:
+        raise ValueError(f"Mask {target_mask} not found in color map.")
+
+    return color_map[target_mask]
+
 def main(config_path):
     with open(config_path, 'r') as f:
         cfg = yaml.safe_load(f)
@@ -34,6 +52,7 @@ def main(config_path):
     sp_export = cfg['sp_export']
     dino_export = cfg['dino_export']
     lg_export = cfg['lg_export']
+    color_map_path = os.path.join(base, cfg['color_map_path'])
 
     image_folder = os.path.join(base, folder)
     mask_folder = os.path.join(base, f"{folder}_masks")
@@ -201,7 +220,7 @@ def main(config_path):
             pass
     assert(os.path.exists(kpt_folder)), f"Keypoint folder {kpt_folder} does not exist. \
                 Please run anchor descriptor generation first." 
-    
+    import ast
     # === 3. Classify Points ===
     print("classify kpts")
     if class_name == "":
@@ -211,7 +230,12 @@ def main(config_path):
         elif instruction_type == 'image':
             mask_list = instruction_cfg['target_mask']
             print(mask_list, type(mask_list))
-            class_name = "image_class"
+            wrapped = f"[{mask_list}]"
+            mask_color_list = ast.literal_eval(wrapped)
+            print(len(mask_color_list))
+            if len(mask_color_list) != 1:
+                raise ValueError(f"Expected one target mask, but got {len(mask_color_list)} masks.")
+            class_name = get_image_class(color_map_path, mask_color_list)
 
     classify_cfg = cfg['classify_kps']
     turn_on_kpts = classify_cfg.get('turn_on', True)
@@ -238,7 +262,6 @@ def main(config_path):
     else:
         if method not in script_map:
             raise ValueError(f"Unsupported class_method: {method}")
-        color_map_path = os.path.join(base, classify_cfg['color_map_path'])
         subregion = classify_cfg['subregion']
         common_args = [
             "--image_folder", image_folder,
@@ -248,6 +271,8 @@ def main(config_path):
             "--click_save_folder", click_folder,
             "--anchor_file", anchor_file,
             "--target_class", class_name,
+            "--kpt_folder", kpt_folder,
+            "--subregion", str(subregion),
         ]
 
         if method == "omniglue":
@@ -255,8 +280,6 @@ def main(config_path):
                 "--og_export", og_export,
                 "--sp_export", sp_export,
                 "--dino_export", dino_export,
-                "--subregion", str(subregion),
-                "--kpt_folder", kpt_folder
             ]
             run_command(script_map[method], common_args + extra_args)
 
