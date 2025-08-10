@@ -1,0 +1,52 @@
+Abbreviation,RGB,Full Name
+VA,"(255, 0, 0)",Vertebral Arch
+MC,"(0, 255, 0)",Metacarpal Bone
+PrxPX,"(0, 0, 255)",Proximal Phalanx
+RCL,"(255, 255, 0)",Radial Collateral Ligament
+ADd,"(255, 49, 0)",Adductor Aponeurosis
+UCL,"(255, 98, 0)",Ulnar Collateral Ligament
+FT,"(255, 148, 0)",Flexor Tendon
+Sca,"(255, 197, 0)",Scaphoid Bone
+LU,"(255, 246, 0)",Lunate Bone
+T,"(213, 255, 0)",Tensor
+Rad,"(164, 255, 0)",Radius Bone
+bone,"(115, 255, 0)",Bone (unspecified)
+FH,"(255, 99, 71)",Femoral Head
+FN,"(135, 206, 250)",Femoral Neck
+IP,"(124, 252, 0)",Ilio-Psoas Muscle
+RF,"(255, 165, 0)",Rectus Femoris Muscle
+Capsule,"(138, 43, 226)",Capsule
+AIIS,"(255, 20, 147)",Anterior Inferior Iliac Spine
+Subscap,"(64, 224, 208)",Subscapularis Tendon
+SSP,"(255, 215, 0)",Supraspinatus Tendon
+Deltoid,"(75, 0, 130)",Deltoid Muscle
+Hum,"(34, 139, 34)",Humerus
+ACR,"(70, 130, 180)",Acromial Bony Margin
+CLV,"(240, 128, 128)",Clavicle
+InfSp,"(199, 21, 133)",Infraspinatus Tendon
+P,"(0, 191, 255)",Patella
+MCL,"(255, 140, 0)",Medial Collateral Ligament
+Fem,"(147, 112, 219)",Femur
+Tib,"(60, 179, 113)",Tibia
+Vessel,"(220, 20, 60)",Vessel
+Biceps,"(255, 105, 180)",Biceps Muscle
+A,"(0, 128, 128)",Acetabulum
+GtrTroch,"(255, 69, 0)",Greater Trochanter
+VB,"(106, 90, 205)",Vertebral Body
+S,"(0, 255, 255)",Sacrum
+TP,"(255, 0, 255)",Transverse Process
+AP,"(173, 255, 47)",Anterior Process
+L,"(139, 0, 139)",Ligament (Unspecified)
+Ul,"(255, 228, 181)",Ulna
+EDM,"(0, 250, 154)",Extensor Digiti Minimi
+ED,"(173, 216, 230)",Extensor Digitorum
+Ext,"(152, 251, 152)",Extensor (Unspecified)
+HH,"(205, 92, 92)",Humeral Head
+VM,"(72, 209, 204)",Vastus Medialis
+Label_45,"(0, 0, 139)",Unknown Label
+Label_46,"(210, 105, 30)",Unknown Label
+Label_47,"(255, 160, 122)",Unknown Label
+Label_48,"(123, 104, 238)",Unknown Label
+Label_49,"(46, 139, 87)",Unknown Label
+Label_50,"(176, 224, 230)",Unknown Label
+__bg__,"(0, 0, 0)",Background

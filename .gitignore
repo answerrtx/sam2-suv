@@ -9,5 +9,8 @@ LightGlue/
 assets/
 Output/
 fea_vis_outputs/
-trials/
 atest_output/
+__pycache__/
+lightglue/__pycache__/*
+lightglue/__pycache__/
+outputs/

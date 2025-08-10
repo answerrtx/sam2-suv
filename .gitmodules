@@ -1,0 +1,6 @@
+[submodule "LightGlue"]
+	path = LightGlue
+	url = https://github.com/cvg/LightGlue.git
+[submodule "omniglue"]
+	path = omniglue
+	url = https://github.com/google-research/omniglue.git
